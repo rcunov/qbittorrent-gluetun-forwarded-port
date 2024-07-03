@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          tags: user/app:latest
+          tags: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64/v8
