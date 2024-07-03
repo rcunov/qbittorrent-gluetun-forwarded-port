@@ -21,8 +21,7 @@ services:
     volumes:
       - ./volumes/qbit:/config
   gluetun-qbit-port:
-    build:
-      context: .
+    image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
     network_mode: "service:gluetun"
     depends_on:
       - qbittorrent
