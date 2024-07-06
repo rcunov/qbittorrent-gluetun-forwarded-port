@@ -1,4 +1,4 @@
-# gluetun-qbit-port
+# qbittorrent-gluetun-forwarded-port
 This is a Docker sidecar container for Gluetun and qBittorrent. It ensures that qBit remains configured to listen on the port forwarded from Gluetun through the API for each of the services.
 
 ## Setup
