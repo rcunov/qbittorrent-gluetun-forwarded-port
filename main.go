@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -33,22 +34,45 @@ func CheckIsSet(envName string) {
 	}
 }
 
+// CheckPort queries the gluetun API for the forwarded port and returns a string with this port.
+// If an error is encountered, it is logged and an empty string is returned.
 func CheckPort() (port string) {
 	apiPath := fmt.Sprintf(qbitBaseUrl, "/v1/openvpn/portforwarded")
 	resp, err := http.Get(apiPath)
+	respBytes, _ := io.ReadAll(resp.Body)
+	respString := string(respBytes)
+	defer resp.Body.Close()
 	if err != nil {
 		logger.Error("returned error when requesting forwarded port",
-			"status_code", resp.StatusCode, "response", err.Error())
+			"status_code", resp.StatusCode, "response", respString, "error", err.Error())
+		return ""
 	}
-	defer resp.Body.Close()
-	// ? if response empty, then error?
-	// if response = 0, then exit with error
+
+	if len(respBytes) == 0 {
+		logger.Error("received empty response when requesting forwarded port")
+		return ""
+	}
+
+	logger.Debug("received response when requesting forwarded port",
+		"status_code", resp.StatusCode, "response", respString)
+
+	if respString == "0" {
+		logger.Error("gluetun has not received a forwarded port yet, exiting to retry")
+		return ""
+	}
 	// if response is `grep -qE '^[0-9]{1,5}$'`, then return success
-	// if else, then invalid response - log error
-	returnstring, _ := io.ReadAll(resp.Body)
-	return string(returnstring)
+	regex := regexp.MustCompile(`^[0-9]{1,5}$`)
+	if regex.MatchString(respString) {
+		logger.Info("received valid response when requesting forwarded port",
+			"status_code", resp.StatusCode, "response", respString)
+		return respString // success condition
+	}
+	logger.Error("invalid response received when requesting forwarded port",
+		"status_code", resp.StatusCode, "response", respString)
+	return ""
 }
 
+// TODO
 func SetPort(port string) {
 	apiPath := fmt.Sprintf(qbitBaseUrl, "/api/v2/app/setPreferences")
 
@@ -67,8 +91,9 @@ func SetPort(port string) {
 		logger.Error("error sending post request to set port")
 	}
 	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
 
-	fmt.Println("Response status:", resp.Status)
+	logger.Debug("sent request to set port", "status_code", resp.StatusCode, "response", string(respBody))
 }
 
 func main() {
@@ -78,6 +103,9 @@ func main() {
 	CheckIsSet("qbitBaseUrl")
 	CheckIsSet("qbitUsername")
 	CheckIsSet("qbitPassword")
+
+	logger.Info("sleeping for 15 seconds to give gluetun time to request port")
+	time.Sleep(15 * time.Second)
 
 	// authenticate and get session cookie
 	requestUrl := qbitBaseUrl + "/api/v2/auth/login"
@@ -124,6 +152,6 @@ func main() {
 	body, _ = io.ReadAll(resp.Body)
 	logger.Info("retrieved qbit API version", "version", string(body))
 
-	// start infinite loop here to check for bad peers
-	CheckPort()
+	port := CheckPort()
+	SetPort(port)
 }
