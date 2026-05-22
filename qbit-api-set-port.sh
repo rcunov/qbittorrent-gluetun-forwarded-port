@@ -1,5 +1,6 @@
 #!/bin/ash
-set -e # Any errors break the script and stop the container. The restart policy will restart the container to try again
+#set -x
+#set -e # Any errors break the script and stop the container. The restart policy will restart the container to try again
 
 # * PURPOSE: Log messages to STDOUT
 # * ARGUMENTS: Two strings - first is content of log message, second is verbal representation of logging level
