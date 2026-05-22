@@ -101,11 +101,12 @@ while true; do
 
   # Log in to qBit API
   log "Attempting to authenticate to ${qbHostname}" DEBUG
-  curlOutput=$(curl -sL --header "Referer: ${qbHostname}" --data "username=${qbUsername}&password=${qbPassword}" -c ${qbCookiejar} ${qbHostname}/api/v2/auth/login)
-  if [ "${curlOutput}" = "Ok." ]; then
+  curlOutput=$(curl -sL --header "Referer: ${qbHostname}" -w "%{http_code}" --data "username=${qbUsername}&password=${qbPassword}" -c ${qbCookiejar} -o qbitAuthResp.txt ${qbHostname}/api/v2/auth/login)
+  if [ "${curlOutput}" = "204" ]; then
     log "Successfully authenticated to the qBit API" DEBUG
   else
-    log "API returned the following message upon authentication attempt: ${curlOutput}" ERROR
+    log "API returned the following HTTP code upon authentication attempt: ${curlOutput}" ERROR
+    log "$(cat qbitAuthResp.txt)" ERROR
     exit 1
   fi
 
