@@ -60,6 +60,7 @@ export sleepTime=${sleepTime:-1800} # Time to wait between running the check. De
 export logLevel=${logLevel:-INFO} # Set the default logging level to INFO
 export qbHostname=${qbHostname:-http://localhost:8080} # Set the default qBittorrent URL - assuming most users will attach this container to Gluetun
 export gtHostname=${gtHostname:-http://localhost:8000} # Set the default Gluetun URL - assuming most users will attach this container to Gluetun
+export gtApiKey=${gtApiKey}
 
 # Do some data validation on our variables. We pass them into the validation functions as strings - function parses them as variables
 isNotEmpty qbUsername
@@ -84,7 +85,7 @@ sleep 30
 while true; do
   # Try to get the forwarded port from the Gluetun API
   log "Attempting to authenticate to ${gtHostname}" DEBUG
-  gtResponse=$(curl -sL ${gtHostname}/v1/openvpn/portforwarded)
+  gtResponse=$(curl -sL --header "X-API-Key: ${gtApiKey}" ${gtHostname}/v1/portforward)
   gtForwardedPort=$(echo ${gtResponse} | jq -r '.port') # Parse the port from the API response
   # Validate the reponse from the Gluetun API
   if [ ${gtForwardedPort} -eq 0 ]; then
