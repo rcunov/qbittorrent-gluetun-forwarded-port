@@ -3,26 +3,32 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"regexp"
+	"strconv"
 	"time"
 )
 
 var (
 	// auth
-	qbitBaseUrl  = os.Getenv("qbitBaseUrl")
-	qbitUsername = os.Getenv("qbitUsername")
-	qbitPassword = os.Getenv("qbitPassword")
+	qbitBaseUrl   = os.Getenv("qbitBaseUrl")
+	qbitUsername  = os.Getenv("qbitUsername")
+	qbitPassword  = os.Getenv("qbitPassword")
+	gluetunApiKey = os.Getenv("gluetunApiKey")
 
 	// global HTTP client with a cookie jar
 	jar, _ = cookiejar.New(nil)
 	client = &http.Client{Jar: jar}
 )
+
+type PortForward struct {
+	Port string `json:"port"`
+}
 
 func CheckIsSet(envName string) {
 	env := os.Getenv(envName)
@@ -36,40 +42,44 @@ func CheckIsSet(envName string) {
 
 // CheckPort queries the gluetun API for the forwarded port and returns a string with this port.
 // If an error is encountered, it is logged and an empty string is returned.
-func CheckPort() (port string) {
-	apiPath := fmt.Sprintf(qbitBaseUrl, "/v1/openvpn/portforwarded")
-	resp, err := http.Get(apiPath)
-	respBytes, _ := io.ReadAll(resp.Body)
-	respString := string(respBytes)
-	defer resp.Body.Close()
+func CheckPort() (p PortForward, err error) {
+	apiPath := fmt.Sprintf(qbitBaseUrl, "/v1/portforward")
+	req, err := http.NewRequest("GET", apiPath, nil)
+	req.Header.Set("X-API-Key", gluetunApiKey)
+	resp, err := client.Do(req)
 	if err != nil {
-		logger.Error("returned error when requesting forwarded port",
-			"status_code", resp.StatusCode, "response", respString, "error", err.Error())
-		return ""
+		logger.Debug("invalid request for port forwarded from gluetun")
+		return PortForward{}, err
 	}
-
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
 	if len(respBytes) == 0 {
-		logger.Error("received empty response when requesting forwarded port")
-		return ""
+		return PortForward{}, errors.New("received empty response from gluetun when requesting forwarded port")
+	}
+	logger.Debug("got response from gluetun", "status_code", resp.StatusCode, "response", string(respBytes))
+
+	if resp.StatusCode > 299 || resp.StatusCode < 200 {
+		return PortForward{}, errors.New("invalid http status code received from gluetun")
 	}
 
-	logger.Debug("received response when requesting forwarded port",
-		"status_code", resp.StatusCode, "response", respString)
+	if err := json.Unmarshal(respBytes, &p); err != nil {
+		logger.Error("unable to unmarshal response from gluetun")
+		return PortForward{}, err
+	}
 
-	if respString == "0" {
-		logger.Error("gluetun has not received a forwarded port yet, exiting to retry")
-		return ""
+	port, err := strconv.Atoi(p.Port)
+	if err != nil {
+		logger.Error("unable to convert port string to integer")
+		return PortForward{}, err
 	}
-	// if response is `grep -qE '^[0-9]{1,5}$'`, then return success
-	regex := regexp.MustCompile(`^[0-9]{1,5}$`)
-	if regex.MatchString(respString) {
-		logger.Info("received valid response when requesting forwarded port",
-			"status_code", resp.StatusCode, "response", respString)
-		return respString // success condition
+	if port == 0 {
+		return PortForward{}, errors.New("gluetun has not gotten a port forwarded yet")
 	}
-	logger.Error("invalid response received when requesting forwarded port",
-		"status_code", resp.StatusCode, "response", respString)
-	return ""
+	if port < 0 || port > 65535 {
+		errmsg := fmt.Sprintf("invalid port of `%s` received from gluetun", p.Port)
+		return PortForward{}, errors.New(errmsg)
+	}
+	return p, nil
 }
 
 // TODO
@@ -132,12 +142,8 @@ func main() {
 
 	body, _ := io.ReadAll(resp.Body)
 	authResponse := string(body)
-	if resp.StatusCode != http.StatusOK {
-		logger.Error("qbit authentication request returned an error", "status_code", resp.StatusCode)
-		os.Exit(1)
-	}
-	if authResponse != "Ok." {
-		logger.Error("invalid credentials for qbit", "response", authResponse)
+	if resp.StatusCode > 299 || resp.StatusCode < 200 {
+		logger.Error("qbit authentication request returned an error", "status_code", resp.StatusCode, "response", authResponse)
 		os.Exit(1)
 	}
 
@@ -152,6 +158,10 @@ func main() {
 	body, _ = io.ReadAll(resp.Body)
 	logger.Info("retrieved qbit API version", "version", string(body))
 
-	port := CheckPort()
-	SetPort(port)
+	port, err := CheckPort()
+	if err != nil {
+		logger.Error("failed to get port forwarded from gluetun. exiting to retry", "error", err.Error())
+		os.Exit(1)
+	}
+	SetPort(port.Port)
 }
