@@ -86,6 +86,7 @@ while true; do
   # Try to get the forwarded port from the Gluetun API
   log "Attempting to authenticate to ${gtHostname}" DEBUG
   gtResponse=$(curl -sL --header "X-API-Key: ${gtApiKey}" ${gtHostname}/v1/portforward)
+  log "gtResponse: ${gtResponse}" DEBUG
   gtForwardedPort=$(echo ${gtResponse} | jq -r '.port') # Parse the port from the API response
   # Validate the reponse from the Gluetun API
   if [ ${gtForwardedPort} -eq 0 ]; then
