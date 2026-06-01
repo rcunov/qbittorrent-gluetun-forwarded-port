@@ -60,6 +60,7 @@ export sleepTime=${sleepTime:-1800} # Time to wait between running the check. De
 export logLevel=${logLevel:-INFO} # Set the default logging level to INFO
 export qbHostname=${qbHostname:-http://localhost:8080} # Set the default qBittorrent URL - assuming most users will attach this container to Gluetun
 export gtHostname=${gtHostname:-http://localhost:8000} # Set the default Gluetun URL - assuming most users will attach this container to Gluetun
+export gtApiKey=${gtApiKey}
 
 # Do some data validation on our variables. We pass them into the validation functions as strings - function parses them as variables
 isNotEmpty qbUsername
@@ -84,7 +85,8 @@ sleep 30
 while true; do
   # Try to get the forwarded port from the Gluetun API
   log "Attempting to authenticate to ${gtHostname}" DEBUG
-  gtResponse=$(curl -sL ${gtHostname}/v1/openvpn/portforwarded)
+  gtResponse=$(curl -sL --header "X-API-Key: ${gtApiKey}" ${gtHostname}/v1/portforward)
+  log "gtResponse: ${gtResponse}" DEBUG
   gtForwardedPort=$(echo ${gtResponse} | jq -r '.port') # Parse the port from the API response
   # Validate the reponse from the Gluetun API
   if [ ${gtForwardedPort} -eq 0 ]; then
@@ -103,7 +105,7 @@ while true; do
   # Log in to qBit API
   log "Attempting to authenticate to ${qbHostname}" DEBUG
   curlOutput=$(curl -sL --header "Referer: ${qbHostname}" -w "%{http_code}" --data "username=${qbUsername}&password=${qbPassword}" -c ${qbCookiejar} -o qbitAuthResp.txt ${qbHostname}/api/v2/auth/login)
-  if [[ "${curlOutput}" == *204 ]]; then
+  if [[ "${curlOutput}" == *2?? ]]; then
     log "Successfully authenticated to the qBit API" DEBUG
   else
     log "API returned the following HTTP code upon authentication attempt: ${curlOutput}" ERROR

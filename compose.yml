@@ -1,6 +1,8 @@
 ---
 services:
   gluetun:
+    # control server auth required as of v3.40.0
+    # https://github.com/qdm12/gluetun-wiki/blob/v3.40.2/setup/advanced/control-server.md#control-server
     image: qmcgaw/gluetun:latest
     cap_add:
       - NET_ADMIN
@@ -12,6 +14,9 @@ services:
       - VPN_PORT_FORWARDING=on
     volumes:
       - ./volumes/gluetun:/tmp/gluetun
+      - ./secrets/auth.toml:/gluetun/auth/config.toml:ro # based on gluetun-auth.md
+    ports:
+      - 8080:8080
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     network_mode: "service:gluetun"
@@ -22,6 +27,8 @@ services:
       - ./volumes/qbit:/config
   gluetun-qbit-port:
     image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
+    # build: # for local testing
+    #   context: .
     network_mode: "service:gluetun"
     depends_on:
       - qbittorrent
@@ -31,6 +38,7 @@ services:
     environment:
       - qbUsername=${qbUsername} # qBittorrent web UI username
       - qbPassword=${qbPassword} # qBittorrent web UI password
+      - gtApiKey=${gtApiKey}
       - TZ=${TZ} # Use your machine's current time zone for the container's logs
       # - qbHostname=http://qbittorrent-url:8080 # If you aren't running this container behind Gluetun, set this to however the container should access qBit
       # - gtHostname=http://gluetun-url:8000 # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}

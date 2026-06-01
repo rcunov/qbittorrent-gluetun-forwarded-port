@@ -1,1 +1,5 @@
 **/*.swp
+volumes/
+secrets/
+.env
+output/
