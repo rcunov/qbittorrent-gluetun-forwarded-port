@@ -8,17 +8,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
 var (
 	// auth
 	qbitBaseUrl   = os.Getenv("qbitBaseUrl")
-	qbitUsername  = os.Getenv("qbitUsername")
-	qbitPassword  = os.Getenv("qbitPassword")
+	qbitApiKey    = os.Getenv("qbitApiKey")
 	gluetunApiKey = os.Getenv("gluetunApiKey")
 
 	// global HTTP client with a cookie jar
@@ -40,9 +40,9 @@ func CheckIsSet(envName string) {
 	}
 }
 
-// CheckPort queries the gluetun API for the forwarded port and returns a string with this port.
+// CheckGluetunPort queries the gluetun API for the forwarded port and returns a string with this port.
 // If an error is encountered, it is logged and an empty string is returned.
-func CheckPort() (p PortForward, err error) {
+func CheckGluetunPort() (p PortForward, err error) {
 	apiPath := fmt.Sprintf(qbitBaseUrl, "/v1/portforward")
 	req, err := http.NewRequest("GET", apiPath, nil)
 	req.Header.Set("X-API-Key", gluetunApiKey)
@@ -82,8 +82,29 @@ func CheckPort() (p PortForward, err error) {
 	return p, nil
 }
 
+func GetOldQbitPort() (oldPort string, err error) {
+	apiPath := qbitBaseUrl + "/api/v2/app/preferences"
+	req, err := http.NewRequest("GET", apiPath, nil)
+	if err != nil {
+		logger.Error("failed to create request to get old qbit port")
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+qbitApiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Error("failed to send request to get old qbit port")
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	result := gjson.GetBytes(respBody, "listen_port")
+	oldPort = result.Str
+	return oldPort, nil
+}
+
 // TODO
-func SetPort(port string) {
+func SetQbitPort(port string) (err error) {
 	apiPath := fmt.Sprintf(qbitBaseUrl, "/api/v2/app/setPreferences")
 
 	payload := map[string]string{"listen_port": port}
@@ -96,14 +117,19 @@ func SetPort(port string) {
 	// https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#set-application-preferences
 	body := append([]byte("json="), jsonBytes...)
 
-	resp, err := http.Post(apiPath, "application/x-www-form-urlencoded", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", apiPath, bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+qbitApiKey)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error("error sending post request to set port")
+		return err
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 
 	logger.Debug("sent request to set port", "status_code", resp.StatusCode, "response", string(respBody))
+	return nil
 }
 
 func main() {
@@ -111,57 +137,69 @@ func main() {
 	logger.Info("starting up")
 
 	CheckIsSet("qbitBaseUrl")
-	CheckIsSet("qbitUsername")
-	CheckIsSet("qbitPassword")
+	CheckIsSet("qbitApiKey")
+	CheckIsSet("gluetunApiKey")
 
 	logger.Info("sleeping for 15 seconds to give gluetun time to request port")
 	time.Sleep(15 * time.Second)
 
-	// authenticate and get session cookie
-	requestUrl := qbitBaseUrl + "/api/v2/auth/login"
-	data := url.Values{"username": {qbitUsername}, "password": {qbitPassword}}
+	// // retry a few times in case qbit hasn't started up yet.
+	// // if the program dies and restarts four or five times before it successfully authenticates, it'll clog up the logs
+	// var resp *http.Response
+	// var err error
+	// for i := 1; i <= 5; i++ {
+	// 	resp, err = client.PostForm(requestUrl, data)
+	// 	if err == nil {
+	// 		logger.Debug("successfully authenticated to qbit")
+	// 		break
+	// 	}
+	// 	logger.Debug("qbit authentication request returned an error", "error", err.Error())
+	// 	time.Sleep(2 * time.Second) // wait before retrying
+	// }
+	// if err != nil { // if can't connect after 5 attempts, exit
+	// 	logger.Error("unable to authenticate to qbit", "error", err.Error())
+	// 	os.Exit(1)
+	// }
+	// defer resp.Body.Close()
 
-	// retry a few times in case qbit hasn't started up yet.
-	// if the program dies and restarts four or five times before it successfully authenticates, it'll clog up the logs
-	var resp *http.Response
-	var err error
-	for i := 1; i <= 5; i++ {
-		resp, err = client.PostForm(requestUrl, data)
-		if err == nil {
-			logger.Debug("successfully authenticated to qbit")
-			break
-		}
-		logger.Debug("qbit authentication request returned an error", "error", err.Error())
-		time.Sleep(2 * time.Second) // wait before retrying
-	}
-	if err != nil { // if can't connect after 5 attempts, exit
-		logger.Error("unable to authenticate to qbit", "error", err.Error())
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	authResponse := string(body)
-	if resp.StatusCode > 299 || resp.StatusCode < 200 {
-		logger.Error("qbit authentication request returned an error", "status_code", resp.StatusCode, "response", authResponse)
-		os.Exit(1)
-	}
+	// body, _ := io.ReadAll(resp.Body)
+	// authResponse := string(body)
+	// if resp.StatusCode > 299 || resp.StatusCode < 200 {
+	// 	logger.Error("qbit authentication request returned an error", "status_code", resp.StatusCode, "response", authResponse)
+	// 	os.Exit(1)
+	// }
 
 	// get app version for debugging purposes
-	requestUrl = qbitBaseUrl + "/api/v2/app/version"
-	resp, err = client.Get(requestUrl)
+	requestUrl := qbitBaseUrl + "/api/v2/app/version"
+	req, err := http.NewRequest("GET", requestUrl, nil)
+	req.Header.Set("Authorization", "Bearer "+qbitApiKey)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error("failed to get version from qbit", "status_code", resp.StatusCode)
-		os.Exit(1)
+		logger.Error(err.Error())
 	}
 	defer resp.Body.Close()
-	body, _ = io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	logger.Info("retrieved qbit API version", "version", string(body))
 
-	port, err := CheckPort()
+	pf, err := CheckGluetunPort()
 	if err != nil {
 		logger.Error("failed to get port forwarded from gluetun. exiting to retry", "error", err.Error())
 		os.Exit(1)
 	}
-	SetPort(port.Port)
+	logger.Info("got forwarded port from gluetun", "forwarded_port", pf.Port)
+
+	oldPort, err := GetOldQbitPort()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	if oldPort != pf.Port {
+		logger.Info("old qbit port does not match port forwarded from gluetun", "qbit_port", oldPort, "forwarded_port", pf.Port)
+		err := SetQbitPort(pf.Port)
+		if err != nil {
+			logger.Error(err.Error())
+			os.Exit(1)
+		}
+	}
 }
