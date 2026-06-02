@@ -74,12 +74,12 @@ func CheckGluetunPort() (p PortForward, err error) {
 	}
 	if port == 0 {
 		return PortForward{}, errors.New("gluetun has not gotten a port forwarded yet")
-	}
-	if port < 0 || port > 65535 {
+	} else if port < 0 || port > 65535 {
 		errmsg := fmt.Sprintf("invalid port of `%s` received from gluetun", p.Port)
 		return PortForward{}, errors.New(errmsg)
+	} else {
+		return p, nil
 	}
-	return p, nil
 }
 
 func GetOldQbitPort() (oldPort string, err error) {
@@ -201,5 +201,7 @@ func main() {
 			logger.Error(err.Error())
 			os.Exit(1)
 		}
+	} else {
+		logger.Info("qbit is correctly configured to listen on the port from gluetun")
 	}
 }
