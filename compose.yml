@@ -12,6 +12,8 @@ services:
       - VPN_PORT_FORWARDING=on
     volumes:
       - ./volumes/gluetun:/tmp/gluetun
+    ports:
+      - "8080:8080"
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     network_mode: "service:gluetun"
