@@ -1,16 +1,19 @@
-FROM alpine:latest
+FROM golang:alpine AS build
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache curl jq tzdata
+COPY go.mod go.sum ./
 
-# Copy in the script
-COPY qbit-api-set-port.sh .
+RUN go mod download
 
-# Ensure script is executable. Don't need to do this since the script is already executable, but just to be safe
-RUN chmod +x qbit-api-set-port.sh
+COPY *.go ./
 
-# Make sure the script always runs when the container starts and logs are sent to STDOUT
-ENTRYPOINT [ "/app/qbit-api-set-port.sh" ]
+RUN go build -o /forwarded-port .
+
+# This base image contains CA certificates we need for outbound HTTPS requests
+# https://github.com/GoogleContainerTools/distroless/blob/main/base/README.md
+FROM gcr.io/distroless/static
+
+COPY --from=build --chmod=755 "/forwarded-port" "/forwarded-port"
+
+ENTRYPOINT [ "/forwarded-port" ]
