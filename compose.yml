@@ -21,7 +21,9 @@ services:
     volumes:
       - ./volumes/qbit:/config
   gluetun-qbit-port:
-    image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
+    # image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
+    build:
+      context: .
     network_mode: "service:gluetun"
     depends_on:
       - qbittorrent
@@ -32,8 +34,6 @@ services:
       - qbUsername=${qbUsername} # qBittorrent web UI username
       - qbPassword=${qbPassword} # qBittorrent web UI password
       - TZ=${TZ} # Use your machine's current time zone for the container's logs
-      # - qbHostname=http://qbittorrent-url:8080 # If you aren't running this container behind Gluetun, set this to however the container should access qBit
-      # - gtHostname=http://gluetun-url:8000 # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
-      # - qbHostname=${qbHostname} # Defaults to http://localhost:8000 - if you're attaching this container to Gluetun, don't change this
-      # - logLevel=DEBUG # Defaults to INFO. Possible values are ERROR, INFO, and DEBUG with each level being progressively noisier
-      # - sleepTime=1800 # Defaults to 30 minutes. This is how long the container will wait before re-running the check
+      - qbHostname=http://localhost:8080 # If you aren't running this container behind Gluetun, set this to however the container should access qBit
+      - gtHostname=http://localhost:8000 # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
+      - logLevel=DEBUG # Defaults to INFO. Possible values are ERROR, INFO, and DEBUG with each level being progressively noisier
