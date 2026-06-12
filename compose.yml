@@ -11,7 +11,8 @@ services:
       - "SERVER_REGIONS=${SERVER_REGIONS}"
       - VPN_PORT_FORWARDING=on
     volumes:
-      - ./volumes/gluetun:/tmp/gluetun
+      - ./volumes/gluetun/tmp:/tmp/gluetun
+      - ./volumes/gluetun/auth:/gluetun/auth
     ports:
       - "8080:8080"
   qbittorrent:
@@ -33,9 +34,9 @@ services:
     restart: on-failure
     user: 1000:1000 # You can set to run as any user. If you're having issues, might need to run as root
     environment:
-      - qbUsername=${qbUsername} # qBittorrent web UI username
-      - qbPassword=${qbPassword} # qBittorrent web UI password
-      - TZ=${TZ} # Use your machine's current time zone for the container's logs
-      - qbHostname=http://localhost:8080 # If you aren't running this container behind Gluetun, set this to however the container should access qBit
-      - gtHostname=http://localhost:8000 # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
-      - logLevel=DEBUG # Defaults to INFO. Possible values are ERROR, INFO, and DEBUG with each level being progressively noisier
+      - "TZ=${TZ}" # Use your machine's current time zone for the container's logs
+      - "qbitHostname=http://localhost:8080" # If you aren't running this container behind Gluetun, set this to however the container should access qBit
+      - "qbitApiKey=${qbitApiKey}" # Settings -> WebUI -> Generate API key
+      - "gluetunHostname=http://localhost:8000" # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
+      - "gluetunApiKey=${gluetunApiKey}" # docker run --rm qmcgaw/gluetun genkey
+      - "logLevel=DEBUG" # Possible values are ERROR, INFO, and DEBUG

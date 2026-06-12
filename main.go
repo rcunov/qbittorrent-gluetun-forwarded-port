@@ -17,9 +17,10 @@ import (
 
 var (
 	// auth
-	qbitBaseUrl   = os.Getenv("qbitBaseUrl")
-	qbitApiKey    = os.Getenv("qbitApiKey")
-	gluetunApiKey = os.Getenv("gluetunApiKey")
+	qbitHostname    = os.Getenv("qbitHostname")
+	qbitApiKey      = os.Getenv("qbitApiKey")
+	gluetunHostname = os.Getenv("gluetunHostname")
+	gluetunApiKey   = os.Getenv("gluetunApiKey")
 
 	// global HTTP client with a cookie jar
 	jar, _ = cookiejar.New(nil)
@@ -43,7 +44,7 @@ func CheckIsSet(envName string) {
 // CheckGluetunPort queries the gluetun API for the forwarded port and returns a string with this port.
 // If an error is encountered, it is logged and an empty string is returned.
 func CheckGluetunPort() (p PortForward, err error) {
-	apiPath := fmt.Sprintf(qbitBaseUrl, "/v1/portforward")
+	apiPath := gluetunHostname + "/v1/portforward"
 	req, err := http.NewRequest("GET", apiPath, nil)
 	req.Header.Set("X-API-Key", gluetunApiKey)
 	resp, err := client.Do(req)
@@ -83,7 +84,7 @@ func CheckGluetunPort() (p PortForward, err error) {
 }
 
 func GetOldQbitPort() (oldPort string, err error) {
-	apiPath := qbitBaseUrl + "/api/v2/app/preferences"
+	apiPath := qbitHostname + "/api/v2/app/preferences"
 	req, err := http.NewRequest("GET", apiPath, nil)
 	if err != nil {
 		logger.Error("failed to create request to get old qbit port")
@@ -105,7 +106,7 @@ func GetOldQbitPort() (oldPort string, err error) {
 
 // TODO
 func SetQbitPort(port string) (err error) {
-	apiPath := fmt.Sprintf(qbitBaseUrl, "/api/v2/app/setPreferences")
+	apiPath := fmt.Sprintf(qbitHostname, "/api/v2/app/setPreferences")
 
 	payload := map[string]string{"listen_port": port}
 	jsonBytes, err := json.Marshal(payload)
@@ -136,8 +137,9 @@ func main() {
 	InitializeLogging()
 	logger.Info("starting up")
 
-	CheckIsSet("qbitBaseUrl")
+	CheckIsSet("qbitHostname")
 	CheckIsSet("qbitApiKey")
+	CheckIsSet("gluetunHostname")
 	CheckIsSet("gluetunApiKey")
 
 	logger.Info("sleeping for 15 seconds to give gluetun time to request port")
@@ -170,7 +172,7 @@ func main() {
 	// }
 
 	// get app version for debugging purposes
-	requestUrl := qbitBaseUrl + "/api/v2/app/version"
+	requestUrl := qbitHostname + "/api/v2/app/version"
 	req, err := http.NewRequest("GET", requestUrl, nil)
 	req.Header.Set("Authorization", "Bearer "+qbitApiKey)
 	resp, err := client.Do(req)
