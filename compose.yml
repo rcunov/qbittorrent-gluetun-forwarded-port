@@ -1,6 +1,8 @@
 ---
 services:
   gluetun:
+    # Control server auth required as of v3.40.0
+    # https://github.com/qdm12/gluetun-wiki/blob/v3.40.2/setup/advanced/control-server.md#control-server
     image: qmcgaw/gluetun:latest
     cap_add:
       - NET_ADMIN
@@ -19,14 +21,14 @@ services:
     image: lscr.io/linuxserver/qbittorrent:latest
     network_mode: "service:gluetun"
     environment:
-      - WEBUI_PORT=8080 # If you change this port, be sure to update the qbHostname variable accordingly in your .env file
+      - WEBUI_PORT=8080 # If you change this port, be sure to update the qbHostname variable accordingly
       - UMASK=022
     volumes:
       - ./volumes/qbit:/config
   gluetun-qbit-port:
-    # image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
-    build:
-      context: .
+    image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
+    # build: # For local build
+    #   context: .
     network_mode: "service:gluetun"
     depends_on:
       - qbittorrent
@@ -36,7 +38,7 @@ services:
     environment:
       - "TZ=${TZ}" # Use your machine's current time zone for the container's logs
       - "qbitHostname=http://localhost:8080" # If you aren't running this container behind Gluetun, set this to however the container should access qBit
-      - "qbitApiKey=${qbitApiKey}" # Settings -> WebUI -> Generate API key
       - "gluetunHostname=http://localhost:8000" # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
+      - "qbitApiKey=${qbitApiKey}" # Settings -> WebUI -> Generate API key
       - "gluetunApiKey=${gluetunApiKey}" # docker run --rm qmcgaw/gluetun genkey
       - "logLevel=DEBUG" # Possible values are ERROR, INFO, and DEBUG

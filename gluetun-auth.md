@@ -8,14 +8,7 @@ routes = ["GET /v1/portforward", "GET /v1/vpn/status"]
 # Define an authentication method with its parameters
 auth = "apikey"
 # docker run --rm qmcgaw/gluetun genkey
-apikey = "d5hdH7k8GHdw34Fght5"
-
-[[roles]]
-name = "gluetunrestart"
-routes = ["PUT /v1/vpn/status", "GET /v1/publicip/ip"]
-auth = "basic"
-username = "myusername"
-password = "mypassword"
+apikey = "qwertyuiopasdfghjklzxcvbnm"
 ```
 
 https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md
