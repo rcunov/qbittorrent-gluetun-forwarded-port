@@ -1,7 +1,7 @@
 ---
 services:
   gluetun:
-    # control server auth required as of v3.40.0
+    # Control server auth required as of v3.40.0
     # https://github.com/qdm12/gluetun-wiki/blob/v3.40.2/setup/advanced/control-server.md#control-server
     image: qmcgaw/gluetun:latest
     cap_add:
@@ -13,21 +13,21 @@ services:
       - "SERVER_REGIONS=${SERVER_REGIONS}"
       - VPN_PORT_FORWARDING=on
     volumes:
-      - ./volumes/gluetun:/tmp/gluetun
-      - ./secrets/auth.toml:/gluetun/auth/config.toml:ro # based on gluetun-auth.md
+      - ./volumes/gluetun/tmp:/tmp/gluetun
+      - ./volumes/gluetun/auth:/gluetun/auth
     ports:
-      - 8080:8080
+      - "8080:8080"
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     network_mode: "service:gluetun"
     environment:
-      - WEBUI_PORT=8080 # If you change this port, be sure to update the qbHostname variable accordingly in your .env file
+      - WEBUI_PORT=8080 # If you change this port, be sure to update the qbHostname variable accordingly
       - UMASK=022
     volumes:
       - ./volumes/qbit:/config
   gluetun-qbit-port:
     image: ghcr.io/rcunov/qbittorrent-gluetun-forwarded-port:latest
-    # build: # for local testing
+    # build: # For local build
     #   context: .
     network_mode: "service:gluetun"
     depends_on:
@@ -36,12 +36,9 @@ services:
     restart: on-failure
     user: 1000:1000 # You can set to run as any user. If you're having issues, might need to run as root
     environment:
-      - qbUsername=${qbUsername} # qBittorrent web UI username
-      - qbPassword=${qbPassword} # qBittorrent web UI password
-      - gtApiKey=${gtApiKey}
-      - TZ=${TZ} # Use your machine's current time zone for the container's logs
-      # - qbHostname=http://qbittorrent-url:8080 # If you aren't running this container behind Gluetun, set this to however the container should access qBit
-      # - gtHostname=http://gluetun-url:8000 # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
-      # - qbHostname=${qbHostname} # Defaults to http://localhost:8000 - if you're attaching this container to Gluetun, don't change this
-      # - logLevel=DEBUG # Defaults to INFO. Possible values are ERROR, INFO, and DEBUG with each level being progressively noisier
-      # - sleepTime=1800 # Defaults to 30 minutes. This is how long the container will wait before re-running the check
+      - "TZ=${TZ}" # Use your machine's current time zone for the container's logs
+      - "qbitHostname=http://localhost:8080" # If you aren't running this container behind Gluetun, set this to however the container should access qBit
+      - "gluetunHostname=http://localhost:8000" # Same thing for Gluetun - don't change these if you are using {{ network_mode: "service:gluetun" }}
+      - "qbitApiKey=${qbitApiKey}" # Settings -> WebUI -> Generate API key
+      - "gluetunApiKey=${gluetunApiKey}" # docker run --rm qmcgaw/gluetun genkey
+      - "logLevel=DEBUG" # Possible values are ERROR, INFO, and DEBUG

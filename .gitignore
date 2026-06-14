@@ -1,5 +1,6 @@
-**/*.swp
-volumes/
-secrets/
 .env
+**/*.swp
+
+secrets/
+volumes/
 output/
