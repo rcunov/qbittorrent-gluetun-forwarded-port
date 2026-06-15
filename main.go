@@ -215,6 +215,6 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		logger.Info("qbit is correctly configured to listen on the port from gluetun")
+		logger.Info("qbit is correctly configured to listen on the port from gluetun", "port", qb.Port)
 	}
 }
